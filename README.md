@@ -4,7 +4,7 @@
 
 ## Sobre o Projeto
 
-Este é um jogo de aventura interativa em texto onde podes navegar por histórias com escolhas que afetam o resultado. O projeto começou como uma brincadeira com amigos em português e agora foi traduzido para inglês com melhorias adicionais.
+Este é um jogo de aventura interativa em texto onde podes navegar por histórias com escolhas que afetam o resultado. O projeto começou como uma brincadeira com uns amigos e agora estou a ver se consigo fazer umas melhorias.
 
 ## Funcionalidades
 
@@ -57,9 +57,9 @@ stats/              # Estatísticas
 
 ## Desenvolvimento
 
-Este projeto foi originalmente criado por diversão com amigos em português. Para o CS50, traduzi para inglês e adicionei várias melhorias como múltiplas histórias e sistema de estatísticas.
+Este projeto foi originalmente criado por diversão com amigos. Para o CS50, traduzi para inglês e adicionei várias melhorias como múltiplas histórias e sistema de estatísticas.
 
-**Uso de IA**: Foi usada principalmente para ajudar com elementos visuais e formatação da interface, permitindo focar no desenvolvimento da lógica do jogo e arquitetura do código.
+**Uso de IA**: Foi usada principalmente para ajudar com elementos visuais e formatação da interface, o que me permitiu focar no desenvolvimento da lógica do jogo e código.
 
 ## Testes
 
