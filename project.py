@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Interactive Story Generator - CS50P Final Project
-Author: [Your Name]
+Authors: Diogo Freire(Me), Ricardo Dias, Pedro Dias, Ricardo Santos
 """
 
 import json
