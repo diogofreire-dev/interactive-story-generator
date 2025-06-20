@@ -8,7 +8,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timedelta
-from project import (
+from interactive_story_generator import (
     get_story_scenes, save_story, add_to_inventory, has_item, 
     remove_from_inventory, show_inventory, get_available_stories,
     get_enchanted_castle_scenes, get_dark_forest_scenes, 
