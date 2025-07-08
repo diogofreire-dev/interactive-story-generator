@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Interactive Story Generator - CS50P Final Project
-Authors: Diogo Freire(Me), Ricardo Dias, Pedro Dias, Ricardo Santos
+Author: [Your Name]
 """
 
 import json
@@ -12,767 +12,361 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
-from rich.progress import Progress, BarColumn, TextColumn
 
+console = Console()
 
 def main():
-    """Main program function"""
-    console = Console()
-    
-    welcome_text = Text("INTERACTIVE STORY GENERATOR", style="bold magenta")
-    console.print(Panel(welcome_text, border_style="bright_blue"))
+    """Main game loop"""
+    console.clear()
+    show_title()
     
     while True:
-        menu_table = Table(show_header=False, box=None)
-        menu_table.add_column("Option", style="cyan", width=3)
-        menu_table.add_column("Description", style="white")
-        
-        menu_table.add_row("1.", "New Story")
-        menu_table.add_row("2.", "Load Saved Story") 
-        menu_table.add_row("3.", "Player Statistics")
-        menu_table.add_row("4.", "Exit")
-        
-        console.print("\nMain Menu:", style="bold yellow")
-        console.print(menu_table)
-        
-        choice = Prompt.ask("\nChoose an option", choices=["1", "2", "3", "4"], default="1")
+        choice = show_main_menu()
         
         if choice == "1":
-            choose_story(console)
+            play_game()
         elif choice == "2":
-            load_saved_story(console)
+            load_game()
         elif choice == "3":
-            show_player_statistics(console)
+            show_global_stats()
         elif choice == "4":
-            console.print("Thanks for playing! See you next time!", style="bold green")
+            console.print("Thanks for playing!", style="green")
             break
+        else:
+            console.print("Invalid choice. Please try again.", style="red")
 
-
-def choose_story(console):
-    """Let player choose which story to play"""
-    console.print("\nAvailable Stories:", style="bold blue")
+def show_title():
+    """Display the game title"""
+    title = Text("Interactive Story Generator", style="bold cyan")
+    subtitle = Text("CS50P Final Project", style="italic")
     
+    title_panel = Panel.fit(f"{title}\n{subtitle}", border_style="cyan")
+    console.print(title_panel)
+    console.print()
+
+def show_main_menu():
+    """Display main menu and get user choice"""
+    menu_text = """
+[bold cyan]Main Menu[/bold cyan]
+
+[1] New Game
+[2] Load Game
+[3] Global Statistics
+[4] Exit
+
+Choose an option: """
+    
+    return Prompt.ask(menu_text, choices=["1", "2", "3", "4"])
+
+def play_game():
+    """Start a new game"""
+    console.clear()
+    
+    # Get player name
+    player_name = Prompt.ask("Enter your name")
+    
+    # Choose story
+    story_choice = choose_story()
+    if not story_choice:
+        return
+    
+    # Initialize game state
+    game_state = {
+        "player_name": player_name,
+        "story_type": story_choice,
+        "current_scene": f"{story_choice}_start",
+        "inventory": [],
+        "visited_scenes": [],
+        "choices_made": [],
+        "deaths": 0,
+        "saves_used": 0,
+        "start_time": datetime.now().isoformat(),
+        "items_collected": 0
+    }
+    
+    # Start the story
+    play_story(game_state)
+
+def choose_story():
+    """Let player choose which story to play"""
     stories = get_available_stories()
     
-    story_table = Table()
-    story_table.add_column("ID", style="cyan", width=3)
-    story_table.add_column("Title", style="magenta")
-    story_table.add_column("Description", style="white")
-    story_table.add_column("Difficulty", style="yellow")
+    console.print("[bold cyan]Choose Your Adventure:[/bold cyan]")
+    console.print()
     
     for i, (story_id, story_info) in enumerate(stories.items(), 1):
-        story_table.add_row(
-            str(i),
-            story_info["title"],
-            story_info["description"],
-            story_info["difficulty"]
-        )
+        console.print(f"[{i}] {story_info['title']}")
+        console.print(f"    {story_info['description']}")
+        console.print(f"    Difficulty: {story_info['difficulty']}")
+        console.print()
     
-    console.print(story_table)
+    console.print(f"[{len(stories) + 1}] Back to Main Menu")
+    console.print()
     
-    story_choices = [str(i) for i in range(1, len(stories) + 1)]
-    choice = Prompt.ask("\nChoose a story", choices=story_choices, default="1")
+    choice = Prompt.ask("Choose a story", choices=[str(i) for i in range(1, len(stories) + 2)])
     
-    story_id = list(stories.keys())[int(choice) - 1]
-    start_new_story(console, story_id)
-
+    if choice == str(len(stories) + 1):
+        return None
+    
+    story_keys = list(stories.keys())
+    return story_keys[int(choice) - 1]
 
 def get_available_stories():
-    """Return dictionary of available stories"""
+    """Return available stories information"""
     return {
-        "enchanted_castle": {
+        "castle": {
             "title": "The Enchanted Castle",
-            "description": "Explore a magical castle filled with mysteries and treasures",
+            "description": "A magical adventure in a mysterious castle",
             "difficulty": "Easy"
         },
-        "dark_forest": {
+        "forest": {
             "title": "The Dark Forest",
-            "description": "Navigate through a dangerous forest full of creatures and traps",
+            "description": "Survive the dangers of a haunted forest",
             "difficulty": "Medium"
         },
-        "space_station": {
-            "title": "Abandoned Space Station",
-            "description": "Investigate a mysterious space station that has gone silent",
+        "space": {
+            "title": "Space Station Alpha",
+            "description": "Sci-fi thriller on a abandoned space station",
             "difficulty": "Hard"
         }
     }
 
+def play_story(game_state):
+    """Main story playing loop"""
+    scenes = get_story_scenes(game_state["story_type"])
+    
+    while True:
+        current_scene = game_state["current_scene"]
+        
+        # Check if scene exists
+        if current_scene not in scenes:
+            console.print(f"Error: Scene '{current_scene}' not found!", style="red")
+            break
+        
+        scene = scenes[current_scene]
+        
+        # Track visited scenes
+        if current_scene not in game_state["visited_scenes"]:
+            game_state["visited_scenes"].append(current_scene)
+        
+        # Display scene
+        console.clear()
+        show_scene(scene, game_state)
+        
+        # Check if this is an ending
+        if scene.get("ending"):
+            show_ending(scene, game_state)
+            break
+        
+        # Get player choice
+        choice = get_player_choice(scene, game_state)
+        
+        if choice is None:  # Player quit
+            break
+        
+        # Process choice
+        if choice.isdigit():
+            choice_index = int(choice) - 1
+            if 0 <= choice_index < len(scene["choices"]):
+                choice_data = scene["choices"][choice_index]
+                
+                # Record choice
+                game_state["choices_made"].append({
+                    "scene": current_scene,
+                    "choice": choice_data["text"],
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                # Handle item collection
+                if "item" in choice_data:
+                    if choice_data["item"] not in game_state["inventory"]:
+                        game_state["inventory"].append(choice_data["item"])
+                        game_state["items_collected"] += 1
+                        console.print(f"[green]You found: {choice_data['item']}[/green]")
+                        console.print("Press Enter to continue...")
+                        input()
+                
+                # Check if choice leads to death
+                if choice_data.get("death"):
+                    game_state["deaths"] += 1
+                    console.print(f"[red]{choice_data.get('death_message', 'You died!')}[/red]")
+                    console.print("Press Enter to continue...")
+                    input()
+                
+                # Move to next scene
+                game_state["current_scene"] = choice_data["next_scene"]
 
-def start_new_story(console, story_id="enchanted_castle"):
-    """Start a new interactive story"""
-    stories = get_available_stories()
-    story_info = stories[story_id]
+def show_scene(scene, game_state):
+    """Display a story scene"""
+    # Scene title
+    if "title" in scene:
+        title_panel = Panel.fit(scene["title"], border_style="cyan")
+        console.print(title_panel)
+        console.print()
     
-    console.print(f"\nStarting: {story_info['title']}", style="bold blue")
-    
-    # Initialize story data with statistics
-    story_data = {
-        "story_id": story_id,
-        "title": story_info["title"],
-        "current_scene": "start",
-        "player_name": "",
-        "choices_made": [],
-        "inventory": [],
-        "start_time": datetime.now().isoformat(),
-        "statistics": {
-            "scenes_visited": 0,
-            "items_collected": 0,
-            "choices_count": 0,
-            "deaths": 0,
-            "saves_used": 0
-        }
-    }
-    
-    # Get player name
-    player_name = Prompt.ask("\nWhat is your name, adventurer?")
-    if not player_name.strip():
-        player_name = "Adventurer"
-    
-    story_data["player_name"] = player_name
-    
-    console.print(f"\nWelcome, [bold cyan]{player_name}[/]! Your adventure is about to begin...")
-    
-    # Begin the adventure
-    play_scene(story_data, "start", console)
-
-
-def play_scene(story_data, scene_id, console):
-    """Execute a specific scene of the story"""
-    scenes = get_story_scenes(story_data["story_id"])
-    
-    if scene_id not in scenes:
-        console.print("Error: Scene not found!", style="bold red")
-        return
-    
-    # Update statistics
-    story_data["statistics"]["scenes_visited"] += 1
-    
-    scene = scenes[scene_id]
-    player_name = story_data["player_name"]
-    
-    # Show scene description
-    description = scene["description"].replace("{player_name}", player_name)
-    console.print(Panel(description, title="Story", border_style="green"))
-    
-    # Check if it's an ending scene
-    if scene.get("is_ending", False):
-        # Calculate play time
-        start_time = datetime.fromisoformat(story_data["start_time"])
-        end_time = datetime.now()
-        play_time = end_time - start_time
-        
-        console.print(Panel(scene.get("ending_text", "Your adventure ends here."), 
-                          title="THE END", border_style="red"))
-        
-        # Show final statistics
-        show_final_statistics(story_data, play_time, console)
-        
-        # Save statistics to global stats
-        save_global_statistics(story_data, play_time)
-        
-        # Ask if player wants to save this story
-        if Confirm.ask("Would you like to save this completed story?"):
-            save_story(story_data, console)
-        
-        Prompt.ask("Press Enter to return to main menu")
-        return
+    # Scene description
+    console.print(scene["description"])
+    console.print()
     
     # Show choices
     if "choices" in scene:
-        console.print("\nWhat do you want to do?", style="bold yellow")
-        
-        choices_table = Table(show_header=False, box=None)
-        choices_table.add_column("Option", style="cyan", width=3)
-        choices_table.add_column("Action", style="white")
-        choices_table.add_column("Requirement", style="dim")
-        
-        available_choices = []
+        console.print("[bold]What do you want to do?[/bold]")
         for i, choice in enumerate(scene["choices"], 1):
-            # Check if player has required item
-            requirement = choice.get("requires_item", "")
-            if not requirement or has_item(story_data, requirement):
-                choices_table.add_row(f"{i}.", choice['text'], "")
-                available_choices.append(str(i))
-            else:
-                choices_table.add_row(f"{i}.", f"[dim]{choice['text']} (Need: {requirement})[/]", f"Locked")
+            # Check if choice requires an item
+            if "requires_item" in choice:
+                if choice["requires_item"] not in game_state["inventory"]:
+                    console.print(f"[dim]{i}. {choice['text']} (requires {choice['requires_item']})[/dim]")
+                    continue
+            
+            console.print(f"{i}. {choice['text']}")
         
-        choices_table.add_row("S.", "Save Game", "")
-        choices_table.add_row("I.", "View Inventory", "")
-        choices_table.add_row("T.", "View Statistics", "")
-        
-        console.print(choices_table)
-        
-        # Get player choice
-        all_choices = available_choices + ["S", "I", "T", "s", "i", "t"]
-        choice = Prompt.ask("Choose", choices=all_choices)
-        
-        if choice.upper() == "S":
-            story_data["statistics"]["saves_used"] += 1
-            save_story(story_data, console)
-            play_scene(story_data, scene_id, console)
-            return
-        elif choice.upper() == "I":
-            show_inventory(story_data, console)
-            play_scene(story_data, scene_id, console)
-            return
-        elif choice.upper() == "T":
-            show_current_statistics(story_data, console)
-            play_scene(story_data, scene_id, console)
-            return
-        
-        # Process story choice
-        choice_index = int(choice) - 1
-        chosen_option = scene["choices"][choice_index]
-        
-        # Update statistics
-        story_data["statistics"]["choices_count"] += 1
-        
-        # Record the choice
-        story_data["choices_made"].append({
-            "scene": scene_id,
-            "choice": chosen_option["text"],
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Add item to inventory if specified
-        if "gives_item" in chosen_option:
-            add_to_inventory(story_data, chosen_option["gives_item"])
-            story_data["statistics"]["items_collected"] += 1
-            console.print(f"You obtained: {chosen_option['gives_item']}", style="green")
-        
-        # Check if choice leads to death
-        if chosen_option.get("is_death", False):
-            story_data["statistics"]["deaths"] += 1
-        
-        # Show result
-        if 'result' in chosen_option:
-            console.print(f"\n{chosen_option['result']}", style="italic bright_blue")
-        
-        # Continue to next scene
-        next_scene = chosen_option["next_scene"]
-        story_data["current_scene"] = next_scene
-        
-        Prompt.ask("\nPress Enter to continue", default="")
-        console.clear()
-        
-        play_scene(story_data, next_scene, console)
+        console.print()
+        console.print("[dim]Commands: I (inventory), S (save), T (stats), Q (quit)[/dim]")
 
-
-def get_story_scenes(story_id):
-    """Return scenes for the specified story"""
-    if story_id == "enchanted_castle":
-        return get_enchanted_castle_scenes()
-    elif story_id == "dark_forest":
-        return get_dark_forest_scenes()
-    elif story_id == "space_station":
-        return get_space_station_scenes()
-    else:
-        return get_enchanted_castle_scenes()  # Default
-
-
-def get_enchanted_castle_scenes():
-    """Return dictionary of enchanted castle story scenes"""
-    return {
-        "start": {
-            "description": """
-Welcome {player_name} to the Enchanted Castle!
-
-You stand before an ancient castle shrouded in mist. The massive wooden doors 
-are slightly ajar, and you can hear strange sounds echoing from within. 
-A rusty sign reads: 'Enter if you dare, but beware the guardian's test.'
-
-To your left, you notice a small path leading to what appears to be a garden.
-To your right, there's a narrow alley between the castle wall and some old stables.
-            """,
-            "choices": [
-                {
-                    "text": "Enter through the main doors",
-                    "result": "You push open the heavy doors and step into the castle's grand hall.",
-                    "next_scene": "great_hall"
-                },
-                {
-                    "text": "Explore the garden path",
-                    "result": "You follow the winding path through overgrown bushes and flowers.",
-                    "next_scene": "garden"
-                },
-                {
-                    "text": "Investigate the narrow alley",
-                    "result": "You squeeze through the tight space and discover a hidden entrance.",
-                    "next_scene": "secret_entrance"
-                }
-            ]
-        },
-        
-        "great_hall": {
-            "description": """
-You find yourself in a magnificent great hall with high vaulted ceilings.
-Ancient tapestries hang on the walls, and a grand staircase curves upward
-to the second floor. 
-
-In the center of the room, there's an ornate pedestal with a golden key
-resting on top. However, you notice that touching it might trigger some
-kind of mechanism - there are strange symbols glowing around the base.
-            """,
-            "choices": [
-                {
-                    "text": "Take the golden key from the pedestal",
-                    "result": "You carefully take the key. The symbols stop glowing and you hear a distant door unlock.",
-                    "gives_item": "golden_key",
-                    "next_scene": "library"
-                },
-                {
-                    "text": "Go to the library",
-                    "result": "You enter a vast library filled with dusty tomes and ancient scrolls.",
-                    "next_scene": "library"
-                },
-                {
-                    "text": "Climb the grand staircase",
-                    "result": "You ascend the stairs to explore the upper floors of the castle.",
-                    "next_scene": "upper_floor"
-                }
-            ]
-        },
-        
-        "garden": {
-            "description": """
-You enter a magical garden where flowers glow with an ethereal light.
-In the center stands an ancient well with a bucket and rope.
-A wise-looking owl perches on a nearby branch, watching you intently.
-
-The owl speaks: 'Brave traveler, if you seek the castle's treasure,
-you must first prove your worth. Will you help me recover my lost amulet?'
-            """,
-            "choices": [
-                {
-                    "text": "Agree to help the owl",
-                    "result": "You retrieve a beautiful silver amulet. The owl gives you a magic potion.",
-                    "gives_item": "healing_potion",
-                    "next_scene": "great_hall"
-                },
-                {
-                    "text": "Politely decline and head back",
-                    "result": "The owl looks disappointed. You head back to explore other areas.",
-                    "next_scene": "great_hall"
-                }
-            ]
-        },
-        
-        "library": {
-            "description": """
-The library is vast and filled with knowledge from ages past.
-You find a book about the castle's secrets lying open on a reading table.
-            """,
-            "choices": [
-                {
-                    "text": "Read the book carefully",
-                    "result": "You learn about the guardian's weakness.",
-                    "gives_item": "ancient_knowledge",
-                    "next_scene": "upper_floor"
-                },
-                {
-                    "text": "Search for magical items",
-                    "result": "You find a protection spell scroll.",
-                    "gives_item": "protection_spell",
-                    "next_scene": "upper_floor"
-                }
-            ]
-        },
-        
-        "upper_floor": {
-            "description": """
-You reach the dragon guardian's chamber. The magnificent dragon speaks:
-'Greetings, brave adventurer. Your choices will determine your fate.'
-            """,
-            "choices": [
-                {
-                    "text": "Challenge the dragon to combat",
-                    "result": "The dragon prepares for battle. This was unwise...",
-                    "is_death": True,
-                    "next_scene": "battle_ending"
-                },
-                {
-                    "text": "Ask about the castle's purpose",
-                    "result": "The dragon is impressed by your wisdom.",
-                    "next_scene": "wisdom_ending"
-                },
-                {
-                    "text": "Offer to help the dragon",
-                    "requires_item": "healing_potion",
-                    "result": "You offer your healing potion. The dragon is moved by your kindness.",
-                    "next_scene": "compassion_ending"
-                }
-            ]
-        },
-        
-        "secret_entrance": {
-            "description": """
-You discover a hidden treasury! However, it's protected by a magical barrier.
-A note warns that only those with the golden key may safely claim the treasures.
-            """,
-            "choices": [
-                {
-                    "text": "Try to take treasure without the key",
-                    "result": "A curse activates! You feel a dark magic taking hold...",
-                    "is_death": True,
-                    "next_scene": "cursed_ending"
-                },
-                {
-                    "text": "Leave and find the key first",
-                    "result": "Wise choice. You head to find the proper key.",
-                    "next_scene": "great_hall"
-                },
-                {
-                    "text": "Use the golden key to claim treasure",
-                    "requires_item": "golden_key",
-                    "result": "The barrier dissolves! The treasure is yours!",
-                    "next_scene": "treasure_ending"
-                }
-            ]
-        },
-        
-        # Ending scenes
-        "treasure_ending": {
-            "description": "You successfully claim the castle's treasure! Well done, {player_name}!",
-            "is_ending": True,
-            "ending_text": "Congratulations! You have achieved the Treasure Hunter ending!"
-        },
-        
-        "wisdom_ending": {
-            "description": "Your wisdom impresses the dragon. You are granted the title of Guardian of Wisdom!",
-            "is_ending": True,
-            "ending_text": "Congratulations! You have achieved the Wisdom ending!"
-        },
-        
-        "compassion_ending": {
-            "description": "Your kindness touches the dragon's heart. You become its eternal companion!",
-            "is_ending": True,
-            "ending_text": "Congratulations! You have achieved the Compassion ending!"
-        },
-        
-        "battle_ending": {
-            "description": "The dragon's power overwhelms you. Your adventure ends in defeat.",
-            "is_ending": True,
-            "ending_text": "You have been defeated. Perhaps wisdom would have served you better."
-        },
-        
-        "cursed_ending": {
-            "description": "The curse traps you forever in the castle. Your greed was your downfall.",
-            "is_ending": True,
-            "ending_text": "You are now cursed to wander these halls forever."
-        }
-    }
-
-
-def get_dark_forest_scenes():
-    """Return dictionary of dark forest story scenes"""
-    return {
-        "start": {
-            "description": """
-Welcome {player_name} to the Dark Forest!
-
-You stand at the edge of a forbidding forest. Dark trees loom overhead,
-and strange sounds echo from within. You must find the lost village
-that disappeared into these woods centuries ago.
-
-Three paths diverge before you.
-            """,
-            "choices": [
-                {
-                    "text": "Take the left path (looks safer)",
-                    "result": "You walk along a seemingly peaceful trail.",
-                    "next_scene": "safe_path"
-                },
-                {
-                    "text": "Take the middle path (direct route)",
-                    "result": "You head straight into the heart of the forest.",
-                    "next_scene": "dangerous_path"
-                },
-                {
-                    "text": "Take the right path (mysterious glow)",
-                    "result": "You follow a strange light deeper into the woods.",
-                    "next_scene": "mystical_path"
-                }
-            ]
-        },
-        
-        "safe_path": {
-            "description": """
-The path seems safe, but you realize you're being followed by glowing eyes.
-A pack of shadow wolves emerges from the bushes, blocking your way.
-            """,
-            "choices": [
-                {
-                    "text": "Try to fight the wolves",
-                    "result": "You barely escape, but you're injured.",
-                    "is_death": True,
-                    "next_scene": "wolf_death"
-                },
-                {
-                    "text": "Slowly back away",
-                    "result": "The wolves let you retreat. You find another path.",
-                    "next_scene": "village_found"
-                }
-            ]
-        },
-        
-        "village_found": {
-            "description": """
-You discover the lost village! The villagers welcome you as their savior.
-You have successfully completed your quest!
-            """,
-            "is_ending": True,
-            "ending_text": "Congratulations! You found the lost village and became a hero!"
-        },
-        
-        "wolf_death": {
-            "description": """
-The shadow wolves were too powerful. Your adventure ends here.
-            """,
-            "is_ending": True,
-            "ending_text": "You were overwhelmed by the creatures of the dark forest."
-        }
-    }
-
-
-def get_space_station_scenes():
-    """Return dictionary of space station story scenes"""
-    return {
-        "start": {
-            "description": """
-Welcome {player_name} to the Abandoned Space Station!
-
-You dock with the silent space station. Emergency lights flicker,
-and the artificial gravity feels unstable. Your mission is to discover
-what happened to the crew and restore the station's systems.
-            """,
-            "choices": [
-                {
-                    "text": "Head to the bridge",
-                    "result": "You make your way through dark corridors to the command center.",
-                    "next_scene": "bridge"
-                },
-                {
-                    "text": "Check the engineering bay",
-                    "result": "You head to the engine room to assess the station's condition.",
-                    "next_scene": "engineering"
-                }
-            ]
-        },
-        
-        "bridge": {
-            "description": """
-The bridge is in chaos. Consoles spark and alarms blare softly.
-You find the captain's log, which might explain what happened here.
-            """,
-            "choices": [
-                {
-                    "text": "Read the captain's log",
-                    "result": "You learn about an alien artifact that drove the crew mad.",
-                    "gives_item": "log_data",
-                    "next_scene": "mystery_solved"
-                },
-                {
-                    "text": "Try to restore main power",
-                    "result": "Power flickers back on, but something else awakens...",
-                    "next_scene": "alien_encounter"
-                }
-            ]
-        },
-        
-        "mystery_solved": {
-            "description": """
-You've uncovered the truth! The alien artifact is still aboard,
-and you successfully contain it, saving future explorers.
-            """,
-            "is_ending": True,
-            "ending_text": "Congratulations! You solved the mystery and saved the galaxy!"
-        },
-        
-        "alien_encounter": {
-            "description": """
-An alien entity awakens and you must face it alone in the depths of space.
-            """,
-            "is_ending": True,
-            "ending_text": "Your fate remains unknown in the vast emptiness of space..."
-        }
-    }
-
-
-def show_current_statistics(story_data, console):
-    """Show current game statistics"""
-    stats = story_data["statistics"]
+def show_ending(scene, game_state):
+    """Display ending scene with final statistics"""
+    console.print(f"[bold green]{scene.get('ending_title', 'THE END')}[/bold green]")
+    console.print()
     
-    console.print("\nCurrent Game Statistics:", style="bold cyan")
+    # Calculate final stats
+    end_time = datetime.now()
+    start_time = datetime.fromisoformat(game_state["start_time"])
+    play_time = end_time - start_time
     
-    stats_table = Table()
-    stats_table.add_column("Statistic", style="yellow")
+    # Show final statistics
+    stats_table = Table(title="Final Statistics")
+    stats_table.add_column("Metric", style="cyan")
     stats_table.add_column("Value", style="green")
     
-    stats_table.add_row("Scenes Visited", str(stats["scenes_visited"]))
-    stats_table.add_row("Choices Made", str(stats["choices_count"]))
-    stats_table.add_row("Items Collected", str(stats["items_collected"]))
-    stats_table.add_row("Deaths", str(stats["deaths"]))
-    stats_table.add_row("Saves Used", str(stats["saves_used"]))
+    stats_table.add_row("Play Time", str(play_time).split('.')[0])
+    stats_table.add_row("Scenes Visited", str(len(game_state["visited_scenes"])))
+    stats_table.add_row("Choices Made", str(len(game_state["choices_made"])))
+    stats_table.add_row("Items Collected", str(game_state["items_collected"]))
+    stats_table.add_row("Deaths", str(game_state["deaths"]))
+    stats_table.add_row("Saves Used", str(game_state["saves_used"]))
     
-    # Calculate play time
-    start_time = datetime.fromisoformat(story_data["start_time"])
+    console.print(stats_table)
+    console.print()
+    
+    # Save final statistics
+    save_final_stats(game_state, play_time)
+    
+    console.print("Press Enter to return to main menu...")
+    input()
+
+def get_player_choice(scene, game_state):
+    """Get and validate player choice"""
+    while True:
+        choice = Prompt.ask("Your choice").strip().upper()
+        
+        if choice == "I":
+            show_inventory(game_state)
+            continue
+        elif choice == "S":
+            save_game(game_state)
+            continue
+        elif choice == "T":
+            show_current_stats(game_state)
+            continue
+        elif choice == "Q":
+            if Confirm.ask("Are you sure you want to quit?"):
+                return None
+            continue
+        
+        # Validate numeric choice
+        if choice.isdigit():
+            choice_index = int(choice) - 1
+            if 0 <= choice_index < len(scene["choices"]):
+                choice_data = scene["choices"][choice_index]
+                
+                # Check if choice requires an item
+                if "requires_item" in choice_data:
+                    if choice_data["requires_item"] not in game_state["inventory"]:
+                        console.print(f"[red]You need {choice_data['requires_item']} to do that![/red]")
+                        continue
+                
+                return choice
+            else:
+                console.print("[red]Invalid choice number![/red]")
+        else:
+            console.print("[red]Please enter a number or command![/red]")
+
+def show_inventory(game_state):
+    """Display player inventory"""
+    console.print("[bold cyan]Inventory:[/bold cyan]")
+    if game_state["inventory"]:
+        for item in game_state["inventory"]:
+            console.print(f"- {item}")
+    else:
+        console.print("Empty")
+    console.print()
+
+def show_current_stats(game_state):
+    """Display current game statistics"""
     current_time = datetime.now()
+    start_time = datetime.fromisoformat(game_state["start_time"])
     play_time = current_time - start_time
     
-    hours = int(play_time.total_seconds() // 3600)
-    minutes = int((play_time.total_seconds() % 3600) // 60)
-    stats_table.add_row("Play Time", f"{hours:02d}:{minutes:02d}")
-    
-    console.print(stats_table)
-    Prompt.ask("Press Enter to continue", default="")
-
-
-def show_final_statistics(story_data, play_time, console):
-    """Show final game statistics"""
-    stats = story_data["statistics"]
-    
-    console.print("\nFinal Game Statistics:", style="bold cyan")
-    
-    stats_table = Table()
-    stats_table.add_column("Statistic", style="yellow")
+    stats_table = Table(title="Current Game Statistics")
+    stats_table.add_column("Metric", style="cyan")
     stats_table.add_column("Value", style="green")
     
-    stats_table.add_row("Total Scenes Visited", str(stats["scenes_visited"]))
-    stats_table.add_row("Total Choices Made", str(stats["choices_count"]))
-    stats_table.add_row("Items Collected", str(stats["items_collected"]))
-    stats_table.add_row("Deaths", str(stats["deaths"]))
-    stats_table.add_row("Saves Used", str(stats["saves_used"]))
-    
-    hours = int(play_time.total_seconds() // 3600)
-    minutes = int((play_time.total_seconds() % 3600) // 60)
-    seconds = int(play_time.total_seconds() % 60)
-    stats_table.add_row("Total Play Time", f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+    stats_table.add_row("Player", game_state["player_name"])
+    stats_table.add_row("Story", game_state["story_type"].title())
+    stats_table.add_row("Current Play Time", str(play_time).split('.')[0])
+    stats_table.add_row("Scenes Visited", str(len(game_state["visited_scenes"])))
+    stats_table.add_row("Choices Made", str(len(game_state["choices_made"])))
+    stats_table.add_row("Items Collected", str(game_state["items_collected"]))
+    stats_table.add_row("Deaths", str(game_state["deaths"]))
+    stats_table.add_row("Saves Used", str(game_state["saves_used"]))
     
     console.print(stats_table)
+    console.print()
 
-
-def save_global_statistics(story_data, play_time):
-    """Save statistics to global stats file"""
-    stats_file = "player_stats.json"
-    
-    # Load existing stats or create new
-    if os.path.exists(stats_file):
-        try:
-            with open(stats_file, 'r') as f:
-                global_stats = json.load(f)
-        except:
-            global_stats = {"games_played": 0, "total_time": 0, "stories_completed": {}}
-    else:
-        global_stats = {"games_played": 0, "total_time": 0, "stories_completed": {}}
-    
-    # Update global stats
-    global_stats["games_played"] += 1
-    global_stats["total_time"] += play_time.total_seconds()
-    
-    story_id = story_data["story_id"]
-    if story_id not in global_stats["stories_completed"]:
-        global_stats["stories_completed"][story_id] = 0
-    global_stats["stories_completed"][story_id] += 1
-    
-    # Save updated stats
-    try:
-        with open(stats_file, 'w') as f:
-            json.dump(global_stats, f, indent=2)
-    except Exception as e:
-        pass  # Fail silently if can't save
-
-
-def show_player_statistics(console):
-    """Show overall player statistics"""
-    stats_file = "player_stats.json"
-    
-    if not os.path.exists(stats_file):
-        console.print("\nNo statistics available yet. Play some games first!", style="yellow")
-        Prompt.ask("Press Enter to continue", default="")
-        return
-    
-    try:
-        with open(stats_file, 'r') as f:
-            global_stats = json.load(f)
-    except:
-        console.print("\nError loading statistics!", style="red")
-        Prompt.ask("Press Enter to continue", default="")
-        return
-    
-    console.print("\nPlayer Statistics:", style="bold cyan")
-    
-    # Overall stats
-    overall_table = Table(title="Overall Statistics")
-    overall_table.add_column("Statistic", style="yellow")
-    overall_table.add_column("Value", style="green")
-    
-    overall_table.add_row("Games Played", str(global_stats.get("games_played", 0)))
-    
-    total_seconds = global_stats.get("total_time", 0)
-    total_hours = int(total_seconds // 3600)
-    total_minutes = int((total_seconds % 3600) // 60)
-    overall_table.add_row("Total Play Time", f"{total_hours}h {total_minutes}m")
-    
-    console.print(overall_table)
-    
-    # Story completion stats
-    if global_stats.get("stories_completed"):
-        console.print("\nStories Completed:", style="bold yellow")
-        
-        story_table = Table()
-        story_table.add_column("Story", style="magenta")
-        story_table.add_column("Times Completed", style="green")
-        
-        stories = get_available_stories()
-        for story_id, count in global_stats["stories_completed"].items():
-            story_name = stories.get(story_id, {}).get("title", story_id)
-            story_table.add_row(story_name, str(count))
-        
-        console.print(story_table)
-    
-    Prompt.ask("\nPress Enter to continue", default="")
-
-
-def save_story(story_data, console):
-    """Save the story progress"""
-    # Create saves directory if it doesn't exist
+def save_game(game_state):
+    """Save current game state"""
     if not os.path.exists("saves"):
         os.makedirs("saves")
     
-    # Generate filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"saves/{story_data['player_name']}_{timestamp}.json"
+    save_name = Prompt.ask("Enter save name", default=f"{game_state['player_name']}_save")
     
-    # Save data
+    # Add current timestamp to save data
+    save_data = game_state.copy()
+    save_data["save_timestamp"] = datetime.now().isoformat()
+    
+    filename = f"saves/{save_name}.json"
+    
     try:
         with open(filename, 'w') as f:
-            json.dump(story_data, f, indent=2)
-        console.print(f"Game saved successfully as {filename}", style="green")
+            json.dump(save_data, f, indent=2)
+        
+        game_state["saves_used"] += 1
+        console.print(f"[green]Game saved as '{save_name}'![/green]")
     except Exception as e:
-        console.print(f"Error saving game: {e}", style="red")
+        console.print(f"[red]Error saving game: {e}[/red]")
+    
+    console.print("Press Enter to continue...")
+    input()
 
-
-def load_saved_story(console):
-    """Load a saved story"""
+def load_game():
+    """Load a saved game"""
     if not os.path.exists("saves"):
-        console.print("\nNo saved stories found!", style="yellow")
+        console.print("[red]No saves directory found![/red]")
+        console.print("Press Enter to continue...")
+        input()
         return
     
     save_files = [f for f in os.listdir("saves") if f.endswith('.json')]
     
     if not save_files:
-        console.print("\nNo saved stories found!", style="yellow")
+        console.print("[red]No save files found![/red]")
+        console.print("Press Enter to continue...")
+        input()
         return
     
     # Show available saves
-    console.print("\nAvailable saved stories:", style="bold yellow")
-    
-    saves_table = Table()
-    saves_table.add_column("ID", style="cyan", width=3)
-    saves_table.add_column("Player Name", style="magenta")
-    saves_table.add_column("Story", style="blue")
-    saves_table.add_column("Date Saved", style="green")
-    saves_table.add_column("Scene", style="yellow")
+    console.print("[bold cyan]Available Saves:[/bold cyan]")
+    console.print()
     
     valid_saves = []
     for i, filename in enumerate(save_files, 1):
@@ -780,81 +374,649 @@ def load_saved_story(console):
             with open(f"saves/{filename}", 'r') as f:
                 save_data = json.load(f)
             
-            # Extract info from filename and data
-            date_str = filename.split('_')[1].replace('.json', '')
-            date_formatted = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+            # Display save info
+            save_time = datetime.fromisoformat(save_data.get("save_timestamp", save_data.get("start_time", datetime.now().isoformat())))
+            console.print(f"[{i}] {filename[:-5]}")
+            console.print(f"    Player: {save_data.get('player_name', 'Unknown')}")
+            console.print(f"    Story: {save_data.get('story_type', 'Unknown').title()}")
+            console.print(f"    Saved: {save_time.strftime('%Y-%m-%d %H:%M')}")
+            console.print(f"    Progress: {len(save_data.get('visited_scenes', []))} scenes visited")
+            console.print()
             
-            story_title = save_data.get('title', 'Unknown Story')
-            
-            saves_table.add_row(
-                str(i),
-                save_data.get('player_name', 'Unknown'),
-                story_title,
-                date_formatted,
-                save_data.get('current_scene', 'Unknown')
-            )
-            valid_saves.append((str(i), filename, save_data))
-            
+            valid_saves.append((i, filename, save_data))
         except Exception as e:
-            console.print(f"Error reading save file {filename}: {e}", style="red")
+            console.print(f"[red]Error reading {filename}: {e}[/red]")
     
     if not valid_saves:
-        console.print("No valid save files found!", style="red")
+        console.print("[red]No valid save files found![/red]")
+        console.print("Press Enter to continue...")
+        input()
         return
     
-    console.print(saves_table)
+    console.print(f"[{len(valid_saves) + 1}] Back to Main Menu")
+    console.print()
     
-    # Get user choice
-    choice_options = [save[0] for save in valid_saves]
-    choice = Prompt.ask("Choose save to load", choices=choice_options + ["cancel"], default="cancel")
+    choice = Prompt.ask("Choose save to load", choices=[str(i) for i in range(1, len(valid_saves) + 2)])
     
-    if choice == "cancel":
+    if choice == str(len(valid_saves) + 1):
         return
     
     # Load the chosen save
     for save_id, filename, save_data in valid_saves:
-        if save_id == choice:
+        if save_id == int(choice):
             console.print(f"Loading story for {save_data['player_name']}...", style="green")
             console.clear()
-            play_scene(save_data, save_data['current_scene'], console)
+            play_story(save_data)
             break
 
-
-def add_to_inventory(story_data, item):
-    """Add an item to player's inventory"""
-    if item not in story_data["inventory"]:
-        story_data["inventory"].append(item)
-
-
-def has_item(story_data, item):
-    """Check if player has a specific item"""
-    return item in story_data["inventory"]
-
-
-def remove_from_inventory(story_data, item):
-    """Remove an item from player's inventory"""
-    if item in story_data["inventory"]:
-        story_data["inventory"].remove(item)
-
-
-def show_inventory(story_data, console):
-    """Display player's inventory"""
-    inventory = story_data.get("inventory", [])
+def show_global_stats():
+    """Display global statistics across all games"""
+    stats_file = "stats/global_stats.json"
     
-    if not inventory:
-        console.print("\nYour inventory is empty.", style="yellow")
+    if not os.path.exists(stats_file):
+        console.print("[red]No global statistics found![/red]")
+        console.print("Press Enter to continue...")
+        input()
         return
     
-    console.print("\nYour Inventory:", style="bold cyan")
-    inventory_table = Table(show_header=False, box=None)
-    inventory_table.add_column("Item", style="green")
+    try:
+        with open(stats_file, 'r') as f:
+            stats = json.load(f)
+        
+        console.print("[bold cyan]Global Statistics[/bold cyan]")
+        console.print()
+        
+        # General stats
+        general_table = Table(title="General Statistics")
+        general_table.add_column("Metric", style="cyan")
+        general_table.add_column("Value", style="green")
+        
+        general_table.add_row("Total Games Played", str(stats.get("total_games", 0)))
+        general_table.add_row("Total Play Time", str(timedelta(seconds=stats.get("total_play_time_seconds", 0))))
+        general_table.add_row("Average Game Time", str(timedelta(seconds=stats.get("average_game_time_seconds", 0))))
+        general_table.add_row("Total Deaths", str(stats.get("total_deaths", 0)))
+        general_table.add_row("Total Items Collected", str(stats.get("total_items_collected", 0)))
+        
+        console.print(general_table)
+        console.print()
+        
+        # Stories completed
+        if "stories_completed" in stats:
+            stories_table = Table(title="Stories Completed")
+            stories_table.add_column("Story", style="cyan")
+            stories_table.add_column("Times Completed", style="green")
+            
+            for story, count in stats["stories_completed"].items():
+                stories_table.add_row(story.title(), str(count))
+            
+            console.print(stories_table)
+            console.print()
+        
+    except Exception as e:
+        console.print(f"[red]Error reading global statistics: {e}[/red]")
     
-    for item in inventory:
-        inventory_table.add_row(f"• {item}")
-    
-    console.print(inventory_table)
-    Prompt.ask("Press Enter to continue", default="")
+    console.print("Press Enter to continue...")
+    input()
 
+def save_final_stats(game_state, play_time):
+    """Save final game statistics to global stats"""
+    if not os.path.exists("stats"):
+        os.makedirs("stats")
+    
+    stats_file = "stats/global_stats.json"
+    
+    # Load existing stats or create new
+    if os.path.exists(stats_file):
+        try:
+            with open(stats_file, 'r') as f:
+                stats = json.load(f)
+        except:
+            stats = {}
+    else:
+        stats = {}
+    
+    # Update stats
+    stats["total_games"] = stats.get("total_games", 0) + 1
+    stats["total_play_time_seconds"] = stats.get("total_play_time_seconds", 0) + play_time.total_seconds()
+    stats["average_game_time_seconds"] = stats["total_play_time_seconds"] / stats["total_games"]
+    stats["total_deaths"] = stats.get("total_deaths", 0) + game_state["deaths"]
+    stats["total_items_collected"] = stats.get("total_items_collected", 0) + game_state["items_collected"]
+    
+    # Track stories completed
+    if "stories_completed" not in stats:
+        stats["stories_completed"] = {}
+    
+    story_type = game_state["story_type"]
+    stats["stories_completed"][story_type] = stats["stories_completed"].get(story_type, 0) + 1
+    
+    # Save updated stats
+    try:
+        with open(stats_file, 'w') as f:
+            json.dump(stats, f, indent=2)
+    except Exception as e:
+        console.print(f"[red]Error saving statistics: {e}[/red]")
+
+def get_story_scenes(story_type):
+    """Return scenes for the specified story type"""
+    stories = {
+        "castle": {
+            "castle_start": {
+                "title": "The Enchanted Castle",
+                "description": "You stand before a magnificent castle with towers that seem to touch the clouds. The heavy wooden doors are slightly ajar, and strange lights flicker from within.",
+                "choices": [
+                    {"text": "Enter through the main doors", "next_scene": "castle_hall"},
+                    {"text": "Look for a side entrance", "next_scene": "castle_garden"},
+                    {"text": "Examine the castle exterior", "next_scene": "castle_exterior"}
+                ]
+            },
+            "castle_hall": {
+                "title": "The Great Hall",
+                "description": "The great hall is vast and dimly lit by floating candles. Ancient tapestries cover the walls, and a grand staircase leads to the upper floors.",
+                "choices": [
+                    {"text": "Go up the grand staircase", "next_scene": "castle_tower"},
+                    {"text": "Explore the dining room", "next_scene": "castle_dining"},
+                    {"text": "Search behind the tapestries", "next_scene": "castle_secret", "item": "golden key"}
+                ]
+            },
+            "castle_garden": {
+                "title": "The Enchanted Garden",
+                "description": "A magical garden with flowers that glow in the moonlight. A crystal fountain stands in the center, and you hear soft music in the air.",
+                "choices": [
+                    {"text": "Drink from the crystal fountain", "next_scene": "castle_fountain"},
+                    {"text": "Follow the music", "next_scene": "castle_music"},
+                    {"text": "Pick a glowing flower", "next_scene": "castle_flower", "item": "magic flower"}
+                ]
+            },
+            "castle_exterior": {
+                "title": "Castle Grounds",
+                "description": "Walking around the castle, you notice strange symbols carved into the stone walls. One section of the wall seems different from the rest.",
+                "choices": [
+                    {"text": "Touch the strange symbols", "next_scene": "castle_magic"},
+                    {"text": "Examine the different wall section", "next_scene": "castle_wall"},
+                    {"text": "Return to the main entrance", "next_scene": "castle_start"}
+                ]
+            },
+            "castle_tower": {
+                "title": "The High Tower",
+                "description": "At the top of the tower, you find a room filled with ancient books and magical artifacts. A wise old wizard sits at a desk.",
+                "choices": [
+                    {"text": "Speak with the wizard", "next_scene": "castle_wizard"},
+                    {"text": "Examine the magical artifacts", "next_scene": "castle_artifacts"},
+                    {"text": "Read the ancient books", "next_scene": "castle_books"}
+                ]
+            },
+            "castle_dining": {
+                "title": "The Dining Room",
+                "description": "A long table is set for a feast that seems to have been abandoned. The food looks fresh, but something feels wrong about it.",
+                "choices": [
+                    {"text": "Eat the food", "next_scene": "castle_poison", "death": True, "death_message": "The food was cursed! You fall into eternal sleep."},
+                    {"text": "Leave the room immediately", "next_scene": "castle_hall"},
+                    {"text": "Investigate under the table", "next_scene": "castle_trap", "item": "silver dagger"}
+                ]
+            },
+            "castle_secret": {
+                "title": "Secret Passage",
+                "description": "You found a hidden passage behind the tapestries! It leads to a treasure chamber filled with gold and jewels.",
+                "choices": [
+                    {"text": "Take the treasure", "next_scene": "castle_treasure_end", "ending": True, "ending_title": "TREASURE HUNTER ENDING"},
+                    {"text": "Leave the treasure and continue exploring", "next_scene": "castle_hall"},
+                    {"text": "Look for traps", "next_scene": "castle_trap_check"}
+                ]
+            },
+            "castle_fountain": {
+                "title": "The Crystal Fountain",
+                "description": "As you drink from the fountain, you feel magical energy flowing through you. Your wounds heal and you feel stronger.",
+                "choices": [
+                    {"text": "Continue to explore the garden", "next_scene": "castle_garden"},
+                    {"text": "Enter the castle through a garden door", "next_scene": "castle_hall"},
+                    {"text": "Rest by the fountain", "next_scene": "castle_rest"}
+                ]
+            },
+            "castle_wizard": {
+                "title": "The Wise Wizard",
+                "description": "The wizard smiles and offers to teach you magic. 'You have shown courage by reaching this tower,' he says.",
+                "choices": [
+                    {"text": "Accept the magic training", "next_scene": "castle_magic_end", "ending": True, "ending_title": "WIZARD APPRENTICE ENDING"},
+                    {"text": "Ask about the castle's history", "next_scene": "castle_history"},
+                    {"text": "Politely decline and leave", "next_scene": "castle_hall"}
+                ]
+            },
+            "castle_magic_end": {
+                "ending": True,
+                "ending_title": "WIZARD APPRENTICE ENDING",
+                "description": "You become the wizard's apprentice and learn powerful magic. Years later, you become the castle's new protector, ensuring its magic is used for good."
+            },
+            "castle_treasure_end": {
+                "ending": True,
+                "ending_title": "TREASURE HUNTER ENDING", 
+                "description": "You take the ancient treasure and become wealthy beyond your wildest dreams. However, you sometimes wonder what other adventures you might have had in the magical castle."
+            },
+            "castle_poison": {
+                "ending": True,
+                "ending_title": "CURSED ENDING",
+                "description": "The cursed food puts you into an eternal sleep. You become part of the castle's magic, forever dreaming of adventures you'll never have."
+            }
+        },
+        
+        "forest": {
+            "forest_start": {
+                "title": "The Dark Forest",
+                "description": "You enter a dense, dark forest where the trees seem to whisper secrets. Strange shadows move between the trunks, and the path splits in three directions.",
+                "choices": [
+                    {"text": "Take the left path", "next_scene": "forest_left"},
+                    {"text": "Take the right path", "next_scene": "forest_right"},
+                    {"text": "Go straight ahead", "next_scene": "forest_straight"}
+                ]
+            },
+            "forest_left": {
+                "title": "The Moonlit Clearing",
+                "description": "You emerge into a clearing bathed in moonlight. Ancient stone circles stand here, and you can hear wolves howling in the distance.",
+                "choices": [
+                    {"text": "Investigate the stone circles", "next_scene": "forest_stones"},
+                    {"text": "Hide and wait for the wolves to pass", "next_scene": "forest_hide"},
+                    {"text": "Climb a tree for safety", "next_scene": "forest_tree"}
+                ]
+            },
+            "forest_right": {
+                "title": "The Witch's Hut",
+                "description": "You discover a small hut with smoke coming from the chimney. Strange herbs hang from the eaves, and you smell something cooking inside.",
+                "choices": [
+                    {"text": "Knock on the door", "next_scene": "forest_witch"},
+                    {"text": "Peek through the window", "next_scene": "forest_window"},
+                    {"text": "Take some herbs and leave", "next_scene": "forest_herbs", "item": "healing herbs"}
+                ]
+            },
+            "forest_straight": {
+                "title": "The Deep Woods",
+                "description": "The path leads deeper into the forest where the trees grow so thick that little light penetrates. You hear strange sounds all around you.",
+                "choices": [
+                    {"text": "Continue forward bravely", "next_scene": "forest_deep"},
+                    {"text": "Try to find another path", "next_scene": "forest_lost"},
+                    {"text": "Make a torch to light your way", "next_scene": "forest_torch"}
+                ]
+            },
+            "forest_stones": {
+                "title": "Ancient Stone Circle",
+                "description": "The stone circle begins to glow as you approach. Ancient magic fills the air, and you feel a powerful presence watching you.",
+                "choices": [
+                    {"text": "Step into the circle", "next_scene": "forest_magic"},
+                    {"text": "Speak to the presence", "next_scene": "forest_spirit"},
+                    {"text": "Back away slowly", "next_scene": "forest_left"}
+                ]
+            },
+            "forest_witch": {
+                "title": "The Forest Witch",
+                "description": "An old woman opens the door. She has kind eyes but a mysterious smile. 'I've been expecting you,' she says.",
+                "choices": [
+                    {"text": "Ask for help", "next_scene": "forest_help"},
+                    {"text": "Ask about the forest", "next_scene": "forest_knowledge"},
+                    {"text": "Politely excuse yourself", "next_scene": "forest_right"}
+                ]
+            },
+            "forest_deep": {
+                "title": "Heart of the Forest",
+                "description": "You reach the heart of the forest where an ancient tree towers above all others. Its trunk is so wide that it would take dozens of people to encircle it.",
+                "choices": [
+                    {"text": "Touch the ancient tree", "next_scene": "forest_tree_spirit"},
+                    {"text": "Rest beneath the tree", "next_scene": "forest_rest"},
+                    {"text": "Look for a way around", "next_scene": "forest_around"}
+                ]
+            },
+            "forest_magic": {
+                "title": "Forest Magic",
+                "description": "The stone circle's magic transports you to safety outside the forest. You have gained the forest's blessing.",
+                "choices": [
+                    {"text": "Accept the blessing", "next_scene": "forest_blessing_end", "ending": True, "ending_title": "FOREST GUARDIAN ENDING"}
+                ]
+            },
+            "forest_help": {
+                "title": "The Witch's Aid",
+                "description": "The witch gives you a magic potion and directions out of the forest. 'Use this wisely,' she warns.",
+                "choices": [
+                    {"text": "Thank her and follow the directions", "next_scene": "forest_escape_end", "ending": True, "ending_title": "SAFE ESCAPE ENDING", "item": "magic potion"},
+                    {"text": "Ask for more help", "next_scene": "forest_greedy"},
+                    {"text": "Offer to help her in return", "next_scene": "forest_helper"}
+                ]
+            },
+            "forest_tree_spirit": {
+                "title": "The Tree Spirit",
+                "description": "Touching the tree awakens its ancient spirit. It offers to make you guardian of the forest.",
+                "choices": [
+                    {"text": "Accept the guardianship", "next_scene": "forest_guardian_end", "ending": True, "ending_title": "FOREST GUARDIAN ENDING"},
+                    {"text": "Respectfully decline", "next_scene": "forest_decline"},
+                    {"text": "Ask what it means", "next_scene": "forest_explain"}
+                ]
+            },
+            "forest_blessing_end": {
+                "ending": True,
+                "ending_title": "FOREST GUARDIAN ENDING",
+                "description": "You become the forest's guardian, protecting it from harm and helping lost travelers find their way. The forest creatures become your allies."
+            },
+            "forest_escape_end": {
+                "ending": True,
+                "ending_title": "SAFE ESCAPE ENDING",
+                "description": "With the witch's help, you safely escape the dark forest. You return home with magical herbs and incredible stories to tell."
+            },
+            "forest_guardian_end": {
+                "ending": True,
+                "ending_title": "FOREST GUARDIAN ENDING",
+                "description": "You accept the role of forest guardian and gain the ability to communicate with all forest creatures. Your new life is filled with purpose and magic."
+            },
+            "forest_lost": {
+                "title": "Lost in the Woods",
+                "description": "You wander deeper into the forest and become hopelessly lost. The trees all look the same.",
+                "choices": [
+                    {"text": "Try to retrace your steps", "next_scene": "forest_straight"},
+                    {"text": "Call for help", "next_scene": "forest_wolves", "death": True, "death_message": "Your calls attract a pack of hungry wolves!"},
+                    {"text": "Climb a tree to get your bearings", "next_scene": "forest_tree"}
+                ]
+            }
+        },
+        
+        "space": {
+            "space_start": {
+                "title": "Space Station Alpha",
+                "description": "You dock with the seemingly abandoned Space Station Alpha. Emergency lights flicker in the corridors, and you hear strange noises echoing through the metal halls.",
+                "choices": [
+                    {"text": "Head to the command center", "next_scene": "space_command"},
+                    {"text": "Check the crew quarters", "next_scene": "space_quarters"},
+                    {"text": "Investigate the engine room", "next_scene": "space_engine"}
+                ]
+            },
+            "space_command": {
+                "title": "Command Center",
+                "description": "The command center is dark except for a few blinking consoles. Warning messages flash on the screens about a containment breach.",
+                "choices": [
+                    {"text": "Access the main computer", "next_scene": "space_computer"},
+                    {"text": "Check the communication system", "next_scene": "space_comms"},
+                    {"text": "Review the security footage", "next_scene": "space_security"}
+                ]
+            },
+            "space_quarters": {
+                "title": "Crew Quarters",
+                "description": "The crew quarters are in disarray. Personal belongings are scattered everywhere, and some doors are sealed with emergency locks.",
+                "choices": [
+                    {"text": "Search the unsealed rooms", "next_scene": "space_search"},
+                    {"text": "Try to open the sealed doors", "next_scene": "space_sealed"},
+                    {"text": "Check the crew logs", "next_scene": "space_logs"}
+                ]
+            },
+            "space_engine": {
+                "title": "Engine Room",
+                "description": "The engine room hums with power, but something is wrong. Strange organic growth covers parts of the machinery.",
+                "choices": [
+                    {"text": "Examine the organic growth", "next_scene": "space_organism"},
+                    {"text": "Check the engine diagnostics", "next_scene": "space_diagnostics"},
+                    {"text": "Try to clean the growth", "next_scene": "space_clean"}
+                ]
+            },
+            "space_computer": {
+                "title": "Main Computer",
+                "description": "The computer reveals that an alien organism was brought aboard for study. It has since escaped and infected the crew.",
+                "choices": [
+                    {"text": "Access quarantine protocols", "next_scene": "space_quarantine"},
+                    {"text": "Search for survivor locations", "next_scene": "space_survivors"},
+                    {"text": "Initiate self-destruct sequence", "next_scene": "space_destruct"}
+                ]
+            },
+            "space_comms": {
+                "title": "Communications",
+                "description": "You manage to establish contact with Earth. They're sending a rescue ship, but it won't arrive for 48 hours.",
+                "choices": [
+                    {"text": "Request immediate evacuation", "next_scene": "space_evacuation"},
+                    {"text": "Report the alien threat", "next_scene": "space_report"},
+                    {"text": "Ask for instructions", "next_scene": "space_instructions"}
+                ]
+            },
+            "space_security": {
+                "title": "Security Footage",
+                "description": "The security footage shows the crew being attacked by strange alien creatures. The creatures seem to be growing and multiplying.",
+                "choices": [
+                    {"text": "Track the creatures' movements", "next_scene": "space_track"},
+                    {"text": "Look for survivors", "next_scene": "space_survivors"},
+                    {"text": "Find the source of the outbreak", "next_scene": "space_source"}
+                ]
+            },
+            "space_organism": {
+                "title": "Alien Organism",
+                "description": "The organic growth pulses with an eerie light. As you approach, it seems to react to your presence.",
+                "choices": [
+                    {"text": "Take a sample for analysis", "next_scene": "space_sample", "item": "alien sample"},
+                    {"text": "Back away slowly", "next_scene": "space_engine"},
+                    {"text": "Try to communicate with it", "next_scene": "space_communicate"}
+                ]
+            },
+            "space_quarantine": {
+                "title": "Quarantine Protocols",
+                "description": "The quarantine system is still active. You can seal off sections of the station or purge contaminated areas.",
+                "choices": [
+                    {"text": "Seal off the infected areas", "next_scene": "space_seal"},
+                    {"text": "Purge the contaminated sections", "next_scene": "space_purge"},
+                    {"text": "Override the quarantine", "next_scene": "space_override"}
+                ]
+            },
+            "space_survivors": {
+                "title": "Survivor Signal",
+                "description": "You detect a faint life sign in the medical bay. Someone might still be alive!",
+                "choices": [
+                    {"text": "Rush to the medical bay", "next_scene": "space_medical"},
+                    {"text": "Proceed cautiously", "next_scene": "space_cautious"},
+                    {"text": "Try to contact them first", "next_scene": "space_contact"}
+                ]
+            },
+            "space_medical": {
+                "title": "Medical Bay",
+                "description": "You find Dr. Sarah Chen, the station's chief medical officer, barricaded in the medical bay. She's injured but alive.",
+                "choices": [
+                    {"text": "Help treat her injuries", "next_scene": "space_treat"},
+                    {"text": "Ask about the alien organism", "next_scene": "space_ask"},
+                    {"text": "Plan an escape together", "next_scene": "space_escape"}
+                ]
+            },
+            "space_treat": {
+                "title": "Medical Treatment",
+                "description": "Dr. Chen explains that the alien organism is highly aggressive and spreads rapidly. She has developed a potential cure.",
+                "choices": [
+                    {"text": "Help her complete the cure", "next_scene": "space_cure"},
+                    {"text": "Focus on escaping instead", "next_scene": "space_escape"},
+                    {"text": "Ask about the cure's risks", "next_scene": "space_risks"}
+                ]
+            },
+            "space_cure": {
+                "title": "The Cure",
+                "description": "Working together, you help Dr. Chen complete the cure. It can be dispersed through the station's air system.",
+                "choices": [
+                    {"text": "Deploy the cure immediately", "next_scene": "space_deploy"},
+                    {"text": "Test it first", "next_scene": "space_test"},
+                    {"text": "Evacuate and let Earth handle it", "next_scene": "space_evacuate"}
+                ]
+            },
+            "space_deploy": {
+                "title": "Deploying the Cure",
+                "description": "You deploy the cure through the station's air system. The alien organisms begin to retreat and die.",
+                "choices": [
+                    {"text": "Check on the station's status", "next_scene": "space_hero_end", "ending": True, "ending_title": "STATION HERO ENDING"}
+                ]
+            },
+            "space_escape": {
+                "title": "Escape Plan",
+                "description": "You and Dr. Chen make it to the escape pods. Earth's rescue ship arrives just as you launch.",
+                "choices": [
+                    {"text": "Launch the escape pod", "next_scene": "space_survivor_end", "ending": True, "ending_title": "SURVIVOR ENDING"}
+                ]
+            },
+            "space_destruct": {
+                "title": "Self-Destruct",
+                "description": "You initiate the self-destruct sequence to prevent the alien organism from reaching Earth.",
+                "choices": [
+                    {"text": "Evacuate immediately", "next_scene": "space_sacrifice_end", "ending": True, "ending_title": "SACRIFICE ENDING"},
+                    {"text": "Try to cancel the sequence", "next_scene": "space_cancel"}
+                ]
+            },
+            "space_hero_end": {
+                "ending": True,
+                "ending_title": "STATION HERO ENDING",
+                "description": "You successfully deploy the cure and save Space Station Alpha. The station is decontaminated and you become a hero. Earth's scientists study your data to prevent future outbreaks."
+            },
+            "space_survivor_end": {
+                "ending": True,
+                "ending_title": "SURVIVOR ENDING", 
+                "description": "You and Dr. Chen escape the station and are rescued by Earth's ship. The station is later destroyed by military forces, but you both survive to tell the tale."
+            },
+            "space_sacrifice_end": {
+                "ending": True,
+                "ending_title": "SACRIFICE ENDING",
+                "description": "You sacrifice yourself to destroy the station and prevent the alien threat from reaching Earth. You are remembered as a hero who saved humanity."
+            },
+            "space_communicate": {
+                "title": "Communication Attempt",
+                "description": "The alien organism seems to respond to your attempts at communication. It's trying to tell you something.",
+                "choices": [
+                    {"text": "Try to understand its message", "next_scene": "space_understand"},
+                    {"text": "Back away carefully", "next_scene": "space_engine"},
+                    {"text": "Offer it something", "next_scene": "space_offer"}
+                ]
+            },
+            "space_understand": {
+                "title": "Alien Understanding",
+                "description": "You realize the organism isn't hostile - it's trying to return home. It was brought here against its will.",
+                "choices": [
+                    {"text": "Help it return home", "next_scene": "space_peace_end", "ending": True, "ending_title": "PEACEFUL RESOLUTION ENDING"},
+                    {"text": "Try to contain it safely", "next_scene": "space_contain"},
+                    {"text": "Report this to Earth", "next_scene": "space_report_discovery"}
+                ]
+            },
+            "space_peace_end": {
+                "ending": True,
+                "ending_title": "PEACEFUL RESOLUTION ENDING",
+                "description": "You help the alien organism return to its home dimension. It restores the infected crew members and leaves peacefully. You've made first contact and established peaceful relations with an alien species."
+            }
+        }
+    }
+    
+    return stories.get(story_type, {})
+
+# Test functions for pytest
+def test_get_story_scenes():
+    """Test that story scenes are properly loaded"""
+    castle_scenes = get_story_scenes("castle")
+    assert "castle_start" in castle_scenes
+    assert "choices" in castle_scenes["castle_start"]
+    
+    forest_scenes = get_story_scenes("forest")
+    assert "forest_start" in forest_scenes
+    
+    space_scenes = get_story_scenes("space")
+    assert "space_start" in space_scenes
+
+def test_get_available_stories():
+    """Test that available stories are returned correctly"""
+    stories = get_available_stories()
+    assert "castle" in stories
+    assert "forest" in stories
+    assert "space" in stories
+    
+    for story_id, story_info in stories.items():
+        assert "title" in story_info
+        assert "description" in story_info
+        assert "difficulty" in story_info
+
+def test_story_structure():
+    """Test that all stories have proper structure"""
+    for story_type in ["castle", "forest", "space"]:
+        scenes = get_story_scenes(story_type)
+        start_scene = f"{story_type}_start"
+        
+        # Check that start scene exists
+        assert start_scene in scenes
+        
+        # Check that start scene has choices
+        assert "choices" in scenes[start_scene]
+        assert len(scenes[start_scene]["choices"]) > 0
+        
+        # Check that all scenes referenced in choices exist
+        for scene_id, scene_data in scenes.items():
+            if "choices" in scene_data:
+                for choice in scene_data["choices"]:
+                    if "next_scene" in choice:
+                        assert choice["next_scene"] in scenes or scenes[choice["next_scene"]].get("ending", False)
+
+def test_story_endings():
+    """Test that all stories have proper endings"""
+    for story_type in ["castle", "forest", "space"]:
+        scenes = get_story_scenes(story_type)
+        
+        # Check that there are ending scenes
+        ending_scenes = [scene for scene in scenes.values() if scene.get("ending")]
+        assert len(ending_scenes) > 0
+        
+        # Check that endings have proper structure
+        for ending in ending_scenes:
+            assert "ending_title" in ending
+            assert "description" in ending
+
+def test_inventory_items():
+    """Test that inventory items are properly defined"""
+    for story_type in ["castle", "forest", "space"]:
+        scenes = get_story_scenes(story_type)
+        
+        for scene_data in scenes.values():
+            if "choices" in scene_data:
+                for choice in scene_data["choices"]:
+                    # If choice gives an item, it should be a string
+                    if "item" in choice:
+                        assert isinstance(choice["item"], str)
+                        assert len(choice["item"]) > 0
+                    
+                    # If choice requires an item, it should be a string
+                    if "requires_item" in choice:
+                        assert isinstance(choice["requires_item"], str)
+                        assert len(choice["requires_item"]) > 0
+
+def test_save_story():
+    """Test save game functionality"""
+    import tempfile
+    import os
+    
+    # Create a temporary directory for testing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Mock game state
+        game_state = {
+            "player_name": "Test Player",
+            "story_type": "castle",
+            "current_scene": "castle_start",
+            "inventory": ["golden key"],
+            "visited_scenes": ["castle_start"],
+            "choices_made": [],
+            "deaths": 0,
+            "saves_used": 0,
+            "start_time": datetime.now().isoformat(),
+            "items_collected": 1
+        }
+        
+        # Change to temp directory
+        original_cwd = os.getcwd()
+        os.chdir(temp_dir)
+        
+        try:
+            # Test save functionality
+            if not os.path.exists("saves"):
+                os.makedirs("saves")
+            
+            filename = "saves/test_save.json"
+            with open(filename, 'w') as f:
+                json.dump(game_state, f)
+            
+            # Test load functionality
+            with open(filename, 'r') as f:
+                loaded_state = json.load(f)
+            
+            assert loaded_state["player_name"] == "Test Player"
+            assert loaded_state["story_type"] == "castle"
+            assert "golden key" in loaded_state["inventory"]
+            
+        finally:
+            os.chdir(original_cwd)
 
 if __name__ == "__main__":
     main()
