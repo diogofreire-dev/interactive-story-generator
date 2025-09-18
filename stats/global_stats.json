@@ -1,0 +1,10 @@
+{
+  "total_games": 1,
+  "total_play_time_seconds": 3.83399,
+  "average_game_time_seconds": 3.83399,
+  "total_deaths": 0,
+  "total_items_collected": 0,
+  "stories_completed": {
+    "castle": 1
+  }
+}
